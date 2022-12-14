@@ -65,7 +65,8 @@ def get_ids():
         response = requests.post(url, headers = headers , data = json.dumps(body))
 
         if response.status_code != 200:
-            raise Exception() 
+            raise Exception()
+            
         response_json = json.loads(response.text)
 
 
@@ -120,7 +121,7 @@ def get_time (init_date,end_date, ids_notion, id_array:list, hours_array:list):
             id_array.append(id)
             hours_array.append(task_consumed_hours)
 
-    return None
+    return response.status_code
 
 
 def get_all_time_records(notion_data):
@@ -202,4 +203,8 @@ def main():
         print('An error occurred while creating the csv file... please contact support :(')
         return None
 
-main()
+    return 200
+
+
+if __name__ == "__main__": 
+    main()
