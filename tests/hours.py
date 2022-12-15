@@ -13,7 +13,6 @@ notion_version = '2022-06-28'
 content = 'application/json'
 
 def intro():
-    
     print('\n')
     print(datetime.today())
     print('Project: C.6274')
