@@ -29,10 +29,10 @@ def dates_format(value):
 
 
 def get_ids()->dict:
-    """
+    '''
     Get all ids from Notion for project C6274.
     :return dict: dictionary containing codes, status and hours downloaded from Clockify.
-    """
+    '''
     headers={
         'Notion-Version': notion_version,
         'Content-Type': content,
@@ -57,19 +57,23 @@ def get_ids()->dict:
     ids_pages = []
 
     for row in response_json['results']:
-        id_notion = row['properties']['ID']['title'][0]['plain_text']
-        id_status = row['properties']['Status planos']['status']['name']
-        id_page = row['id']
-
         try:
-            id_comment_date = row ['properties']["Llegada comentarios"]["date"]["start"]
-        except:
-            id_comment_date = ""
+            id_notion = row['properties']['ID']['title'][0]['plain_text']
+            id_status = row['properties']['Status planos']['status']['name']
+            id_page = row['id']
 
-        ids.append(id_notion)
-        ids_status.append(id_status)
-        ids_comments_date.append(id_comment_date)
-        ids_pages.append(id_page)
+            try:
+                id_comment_date = row ['properties']['Llegada comentarios']['date']['start']
+            except:
+                id_comment_date = ''
+            
+            ids.append(id_notion)
+            ids_status.append(id_status)
+            ids_comments_date.append(id_comment_date)
+            ids_pages.append(id_page)
+
+        except:
+            pass
 
     while response_json['has_more']:
 
@@ -86,27 +90,71 @@ def get_ids()->dict:
         response_json = json.loads(response.text)
 
         for row in response_json['results']:
-            
-            id_notion = row['properties']['ID']['title'][0]['plain_text']
-            id_page = row['id']
-
             try:
-                id_comment_date = row ['properties']["Llegada comentarios"]["date"]["start"]
+                id_notion = row['properties']['ID']['title'][0]['plain_text']
+                id_status = row['properties']['Status planos']['status']['name']
+                id_page = row['id']
+
+                try:
+                    id_comment_date = row ['properties']['Llegada comentarios']['date']['start']
+                except:
+                    id_comment_date = ''
+                
+                ids.append(id_notion)
+                ids_status.append(id_status)
+                ids_comments_date.append(id_comment_date)
+                ids_pages.append(id_page)
+
             except:
-                id_comment_date = ""
+                pass
 
-            ids.append(id_notion)
-            ids_status.append(id_status)
-            ids_comments_date.append(id_comment_date)
-            ids_pages.append(id_page)
+    return {'code':ids, 'status':ids_status, 'comment_date':ids_comments_date, 'id_page':ids_pages}
 
-    print(ids_comments_date)
+def transform_data_excel(excel_file):
 
-    return {'codes':ids, 'status':ids_status, 'comments_date':ids_comments_date, 'ids_pages':ids_pages}
+    df = pd.read_excel(excel_file, engine='openpyxl')
+    df.fillna('', inplace=True)
+    df.replace({np.nan: None}, inplace = True)
 
+    codes = []
+    dates_recive = []
+    zones = []
+    areas = []
+    descriptions = []
+    status_comments = []
+    reject_comments = []
 
+    for dcm_number,dcm_document,date_recive,description, status_comment, reject_comment in zip(
+        df['DCM Number'],
+        df['Document Number'],
+        df['Supplier Involvment Date'],
+        df['Description'],
+        df['Sketch Status'],
+        df['Rejection Note']):
 
-def upload_new_dcms(file,ids:list):
+        code = f'DCM{dcm_number[-4:]}-{dcm_document[6:]}'
+        zone= dcm_document[12:14]
+        area = dcm_document[10:12]
+        if not date_recive is None:
+            date_recive =  dates_format(date_recive)
+        else:
+            date_recive = ''
+
+        codes.append(code)
+        dates_recive.append(date_recive)
+        zones.append(zone)
+        areas.append(area)
+        descriptions.append(description)
+        status_comments.append(status_comment)
+        reject_comments.append(reject_comment)
+
+    excel = {'code':codes, 'date_recive':dates_recive,'zone':zones,'area':areas,'description':descriptions,'status_comment':status_comments, 'reject_comment':reject_comments}
+    
+    df = pd.DataFrame(data=excel)
+
+    return df
+
+def upload_new_pages(df_excel, notion_data:list):
     
     headers={
         'Notion-Version': notion_version,
@@ -114,113 +162,71 @@ def upload_new_dcms(file,ids:list):
         'Authorization': f'Bearer {api_key_notion}'
     }
 
-    dcms = 0
+    for index,row in df_excel.iterrows():
+        
+        if row['code'] in notion_data:
+            continue
 
-    for dcm_number,dcm_document,date_recive,description in zip(
-        file['DCM Number'],file['Document Number'],
-        file['Supplier Involvment Date'],
-        file['Description']):
-        id = f'DCM{dcm_number[-4:]}-{dcm_document[6:]}'
-
-        if not id in ids:
-            url = "https://api.notion.com/v1/pages"
-            data = {
-                'parent':{'database_id':f'{db_id}'},
-                "properties": {
-                    "ID": {
-                        "title": [{"text": {"content": id}}]
-                    },
-                    "Zona": {
-                        "select": {"name": dcm_document[12:14]}
-                    },
-                    "Area": {
-                        "select": {"name": dcm_document[10:12]}
-                    },
-                    "Descripción": {
-                        "rich_text": [{"text": {"content": description}}]
-                    },
-                    "Status modelo": {
-                        "status": {"name": "Back-log"}
-                    },
-                }
+        url = 'https://api.notion.com/v1/pages'
+        data = {
+            'parent':{'database_id':f'{db_id}'},
+            'properties': {
+                'ID': {
+                    'title': [{'text': {'content': row['code']}}]
+                },
+                'Zona': {
+                    'select': {'name': row['zone']}
+                },
+                'Area': {
+                    'select': {'name': row['area']}
+                },
+                'Descripción': {
+                    'rich_text': [{'text': {'content': row['description']}}]
+                },
+                'Status modelo': {
+                    'status': {'name': 'Back-log'}
+                },
             }
+        }
+    
+        if not row['date_recive'] == '':
+            data['properties']['Fecha de llegada'] = {'date': {'start': row['date_recive']}}
         
-            if not date_recive is None:
-                data['properties']['Fecha de llegada'] = {"date": {"start": dates_format(date_recive)}}
-            
-            #response = requests.post(url=url,headers=headers, data=json.dumps(data))
-            
-            dcms += 1 
+        response = requests.post(url=url,headers=headers, data=json.dumps(data))
 
-            #print(f'Status response:{response.status_code}/{dcms}')
-        
-    return dcms
 
-def update_dcms(df_excel,ids:list):
+def update_pages_with_comments(df_excel,notion_data):
+    
+    df_excel = df_excel[df_excel['status_comment']=='Rejected']
+    df_notion = pd.DataFrame(data=notion_data)
+    df=pd.merge(df_notion, df_excel, on='code')
 
     headers={
         'Notion-Version': notion_version,
         'Content-Type': content,
         'Authorization': f'Bearer {api_key_notion}'
     }
+    # Importante solo se suben las que no tienen fecha de llegada de comentarios.
 
-    df_excel = df_excel[df_excel['Sketch Status']=='Rejected']
-    
-    df_excel = df_excel.loc[:, ['codes', 'status','hours']]
-    df_notion = pd.DataFrame(data=ids)
+    for page,comment in zip(df['id_page'],df['reject_comment']):
 
-    df=pd.merge(df_notion, df_excel, on='codes')
-
-    print(df)
-
-    """
-    for dcm_number,dcm_document,status,comment in zip(file['DCM Number'],file['Document Number'],file['Sketch Status'],file['Sketch Status'],file['Rejection Note']):
-
-        id = f'DCM{dcm_number[-4:]}-{dcm_document[6:]}'
-
-        if id in ids:
-            url = "https://api.notion.com/v1/pages"
-            data = {
-                'parent':{'database_id':f'{db_id}'},
-                "properties": {
-                    "ID": {
-                        "title": [{"text": {"content": id}}]
-                    },
-                    "Zona": {
-                        "select": {"name": dcm_document[12:14]}
-                    },
-                    "Area": {
-                        "select": {"name": dcm_document[10:12]}
-                    },
-                    "Descripción": {
-                        "rich_text": [{"text": {"content": description}}]
-                    },
-                    "Status modelo": {
-                        "status": {"name": "Back-log"}
-                    },
-                }
+        body ={
+            'id': page,
+            'properties':{
+                'Comentarios': {'rich_text': [{'text': {'content': comment}}]}
             }
-        
-            if not date_recive is None:
-                data['properties']['Fecha de llegada'] = {"date": {"start": dates_format(date_recive)}}
-            
-            #response = requests.post(url=url,headers=headers, data=json.dumps(data))
-            
-            dcms += 1 
+        }
 
-            #print(f'Status response:{response.status_code}/{dcms}')
-        
-    return dcms
-    """
+        url = f'https://api.notion.com/v1/pages/{page}'
+        response = requests.patch(url, headers = headers , data = json.dumps(body))
+
+        print(response.text)
 
 
 
 
 
-ids = get_ids()
-
-print(ids)
-
+notion_data = get_ids()
 
 for path in os.listdir(os.getcwd()):
     if os.path.isfile(os.path.join(os.getcwd(),path)):
@@ -229,17 +235,13 @@ for path in os.listdir(os.getcwd()):
             file_type = file_name[1].split('.')[0]
             file_extension = file_name[1].split('.')[1]
         except:
-            file_type = ""
-            file_extension = ""
+            file_type = ''
+            file_extension = ''
         
         if file_type == 'DCMs' and file_extension == 'xlsx':
-
-            df = pd.read_excel(path, engine='openpyxl')
-            df.fillna("", inplace=True)
-            df.replace({np.nan: None}, inplace = True)
-
-            update_dcms(df, ids)
-
+           df_excel = transform_data_excel(excel_file=path)
+           upload_new_pages(df_excel=df_excel,notion_data=notion_data['code'])
+           update_pages_with_comments(df_excel=df_excel, notion_data=notion_data)
 
 
 
