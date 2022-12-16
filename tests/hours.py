@@ -18,11 +18,14 @@ def intro():
     print('Project: C.6274')
     print('Current version 1.0.0')
     print('In case of any error please contact JLC by email (jose.conde@ghenova.net) \n')
-
     return None
 
 
-def get_ids():
+def get_notion_data()->dict:
+    """
+    Get all ids from Notion for project C6274.
+    :return dict: dictionary containing codes, status and hours downloaded from Clockify.
+    """
     headers={
         'Notion-Version': notion_version,
         'Content-Type': content,
@@ -42,19 +45,24 @@ def get_ids():
     response_json = json.loads(response.text)
 
     ids = []
+    ids_status = []
     ids_pages = []
 
     for row in response_json['results']:
-        status_notion = row['properties']['Status planos']['status']['name'] 
-        id_notion = row['properties']['ID']['title'][0]['plain_text']
-        id_page = row['id']
+        try: 
+            id_notion = row['properties']['ID']['title'][0]['plain_text']
+            id_status = row['properties']['Status planos']['status']['name']
+            id_page = row['id']
 
-        if status_notion == 'DCM Delivered':
             ids.append(id_notion)
+            ids_status.append(id_status)
             ids_pages.append(id_page)
 
+        except: 
+            pass
 
-    while response_json['has_more']:                
+
+    while response_json['has_more']:
 
         body ={
             'start_cursor':str(response_json['next_cursor']),
@@ -68,23 +76,37 @@ def get_ids():
             
         response_json = json.loads(response.text)
 
-
         for row in response_json['results']:
-            status_notion = row['properties']['Status planos']['status']['name'] 
-            id_notion = row['properties']['ID']['title'][0]['plain_text']
 
-            if status_notion == 'DCM Delivered':
+            try: 
+                id_notion = row['properties']['ID']['title'][0]['plain_text']
+                id_status = row['properties']['Status planos']['status']['name']
+                id_page = row['id']
                 ids.append(id_notion)
+                ids_status.append(id_status)
                 ids_pages.append(id_page)
-    
-    return {'codes':ids, 'ids_pages':ids_pages}
+
+            except: 
+                pass
+
+
+    return {'codes':ids, 'status':ids_status,'ids_pages':ids_pages}
 
 
 def format_date(date):
     date_mod = str(date).split(' ')
     return date_mod[0] + 'T' + date_mod[1]
 
-def get_time (init_date,end_date, ids_notion, id_array:list, hours_array:list):
+
+def get_time_record (init_date,end_date, ids_clockify:list, hours_clockify:list)->int:
+    """
+    Get time records from Clockify for a specific day.
+    :param init_date: initial date of query.
+    :param end_date: final date of query.
+    :param ids_clockify: list of dcms downloaded from Clockify.
+    :param hours_clockify: list of hours downloaded from Clockify.
+    :return int: response status after connect clockify api.
+    """
     headers= {
         'X-Api-Key': api_key_clockify ,
         'content-type':content
@@ -116,14 +138,17 @@ def get_time (init_date,end_date, ids_notion, id_array:list, hours_array:list):
         id = i['description']
         task_consumed_hours = round (float (i['timeInterval']['duration'])/3600,2)
 
-        if id in ids_notion:
-            id_array.append(id)
-            hours_array.append(task_consumed_hours)
+        ids_clockify.append(id)
+        hours_clockify.append(task_consumed_hours)
 
     return response.status_code
 
 
-def get_all_time_records(notion_data):
+def get_all_time_records()->dict:
+    """
+    Get all time records from Clockify for project C6274 from 01/12/2022 to today.
+    :return dict: dictionary containing codes and hours downloaded from Clockify.
+    """
 
     last_date = datetime.strptime(datetime.today().strftime('%Y-%m-%d'), '%Y-%m-%d') + timedelta(days=1)
     init_date = datetime(2022,12,1)
@@ -134,21 +159,32 @@ def get_all_time_records(notion_data):
     while init_date != last_date:
         end_date = init_date + timedelta(days=1)
 
-        get_time(init_date=format_date(init_date),end_date=format_date(end_date), ids_notion=notion_data['codes'], id_array= codes, hours_array=hours)
+        get_time_record(init_date=format_date(init_date),end_date=format_date(end_date), ids_clockify= codes, hours_clockify=hours)
 
         init_date += timedelta(days=1)
     
     return {'codes':codes, 'hours':hours }
 
 
-def upload_hours_to_notion(dataframe):
+def process_data(clockify_data:dict, notion_data:dict):
+
+    df_clockify = pd.DataFrame(data=clockify_data)
+    df_clockify2= df_clockify.groupby(['codes']).sum()
+    df_notion = pd.DataFrame(data=notion_data)
+    df=pd.merge(df_notion, df_clockify2, on='codes')
+    
+    return df
+
+
+def upload_hours_to_notion(df)->int:
+
     headers = {
         'Authorization': f'Bearer {api_key_notion}',
         'Content-Type': 'application/json',
         'Notion-Version': '2022-06-28'
     }
 
-    for page,hours in zip(dataframe['ids_pages'],dataframe['hours']):
+    for page,hours in zip(df['ids_pages'],df['hours']):
 
         body ={
             'id': page,
@@ -159,6 +195,19 @@ def upload_hours_to_notion(dataframe):
 
         if response.status_code != 200:
             raise Exception() 
+    
+    return response.status_code
+
+def generate_csv(df):
+    """
+    Gnerete a csv file with all DCMs in DCM Delivered status.
+    :param df: dataframe with data from merge dataframes.
+    :return None:
+    """
+    df = df[df['status']=='DCM Delivered']
+    df2 = df.loc[:, ['codes', 'status','hours']]
+    path = os.path.join(os.getcwd(),'data.csv')
+    df2.to_csv(path_or_buf=path, sep=';')
 
 
 def main():
@@ -167,26 +216,30 @@ def main():
 
     print('Loading results from Notion')
     try:
-        notion_data = get_ids()
+        notion_data = get_notion_data()
         print('Success!!')
     except:
         print('An error occurred while loading data from Notion... please contact support :(')
         return None
-
+    
     print('Loading results from Clockify')
     try:
-        clockify_data = get_all_time_records(notion_data=notion_data)
+        clockify_data = get_all_time_records()
         print('Success!!')
     except:
         print('An error occurred while loading data from Clockify... please contact support :(')
         return None
 
+    print('Processing data...')
+    try:
+        df = process_data(notion_data=notion_data, clockify_data=clockify_data)
+        print('Success!!')
+    except:
+        print('An error occurred while processing data... please contact support :(')
+        return None
+
     print('Uploading results to Notion')
     try:
-        df_clockify = pd.DataFrame(data=clockify_data)
-        df_clockify = df_clockify.groupby(['codes']).sum()
-        df_notion = pd.DataFrame(data=notion_data)
-        df=pd.merge(df_notion, df_clockify, on='codes')
         upload_hours_to_notion(df)
         print('Success!!')
     except:
@@ -195,8 +248,7 @@ def main():
     
     print('Generating csv file')
     try:
-        path = os.path.join(os.getcwd(),'data.csv')
-        df_clockify.to_csv(path_or_buf=path, sep=';')
+        generate_csv(df)
         print('Success!!')
     except:
         print('An error occurred while creating the csv file... please contact support :(')
