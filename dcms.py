@@ -206,22 +206,28 @@ def update_pages_with_comments(df_excel,notion_data):
         'Content-Type': content,
         'Authorization': f'Bearer {api_key_notion}'
     }
-    # Importante solo se suben las que no tienen fecha de llegada de comentarios.
 
-    for page,comment in zip(df['id_page'],df['reject_comment']):
+    # Importante solo se suben las que no tienen fecha de llegada de comentarios en Notion, lo que implica que si cambia el comentario en Cruscotto no se actualiza en Notion.
 
-        body ={
-            'id': page,
-            'properties':{
-                'Comentarios': {'rich_text': [{'text': {'content': comment}}]}
+
+    for page,comment,comment_date in zip(df['id_page'],df['reject_comment'],df['comment_date']):
+
+        if comment_date == "":
+
+            now = datetime.today()
+
+            body ={
+                'id': page,
+                'properties':{
+                    'Comentarios': {'rich_text': [{'text': {'content': comment}}]},
+                    'Llegada comentarios':{'date': {'start': now.strftime('%Y-%m-%d') }}
+                }
             }
-        }
+            url = f'https://api.notion.com/v1/pages/{page}'
 
-        url = f'https://api.notion.com/v1/pages/{page}'
-        response = requests.patch(url, headers = headers , data = json.dumps(body))
+            response = requests.patch(url, headers = headers , data = json.dumps(body))
 
-        print(response.text)
-
+            print(response.status_code)
 
 
 
