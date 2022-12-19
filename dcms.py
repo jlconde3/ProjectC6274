@@ -18,7 +18,7 @@ content = 'application/json'
 def intro():
     print('\n')
     print(datetime.today())
-    print('Project: C.6274')
+    print('Project: C6274')
     print('Current version 1.0.0')
     print('In case of any error please contact JLC by email (jose.conde@ghenova.net) \n')
 
@@ -28,7 +28,7 @@ def dates_format(value):
     return datetime.strftime(value, '%Y-%m-%d')
 
 
-def get_ids()->dict:
+def get_notion_data()->dict:
     '''
     Get all ids from Notion for project C6274.
     :return dict: dictionary containing codes, status and hours downloaded from Clockify.
@@ -110,6 +110,8 @@ def get_ids()->dict:
 
     return {'code':ids, 'status':ids_status, 'comment_date':ids_comments_date, 'id_page':ids_pages}
 
+
+
 def transform_data_excel(excel_file):
 
     df = pd.read_excel(excel_file, engine='openpyxl')
@@ -124,29 +126,33 @@ def transform_data_excel(excel_file):
     status_comments = []
     reject_comments = []
 
-    for dcm_number,dcm_document,date_recive,description, status_comment, reject_comment in zip(
+    for dcm_number,dcm_document,date_recive,description,status, status_comment, reject_comment in zip(
         df['DCM Number'],
         df['Document Number'],
         df['Supplier Involvment Date'],
         df['Description'],
+        df['Closure'],
         df['Sketch Status'],
         df['Rejection Note']):
 
-        code = f'DCM{dcm_number[-4:]}-{dcm_document[6:]}'
-        zone= dcm_document[12:14]
-        area = dcm_document[10:12]
-        if not date_recive is None:
-            date_recive =  dates_format(date_recive)
-        else:
-            date_recive = ''
+        if status in ['Sketch sent to Fincantieri','Involvement to Do','Awaiting Info FC'] and status_comment != 'Approved':
 
-        codes.append(code)
-        dates_recive.append(date_recive)
-        zones.append(zone)
-        areas.append(area)
-        descriptions.append(description)
-        status_comments.append(status_comment)
-        reject_comments.append(reject_comment)
+            code = f'DCM{dcm_number[-4:]}-{dcm_document[6:]}'
+            zone= dcm_document[12:14]
+            area = dcm_document[10:12]
+
+            if not date_recive is None:
+                date_recive =  dates_format(date_recive)
+            else:
+                date_recive = ''
+            
+            codes.append(code)
+            dates_recive.append(date_recive)
+            zones.append(zone)
+            areas.append(area)
+            descriptions.append(description)
+            status_comments.append(status_comment)
+            reject_comments.append(reject_comment)
 
     excel = {'code':codes, 'date_recive':dates_recive,'zone':zones,'area':areas,'description':descriptions,'status_comment':status_comments, 'reject_comment':reject_comments}
     
@@ -207,9 +213,6 @@ def update_pages_with_comments(df_excel,notion_data):
         'Authorization': f'Bearer {api_key_notion}'
     }
 
-    # Importante solo se suben las que no tienen fecha de llegada de comentarios en Notion, lo que implica que si cambia el comentario en Cruscotto no se actualiza en Notion.
-
-
     for page,comment,comment_date in zip(df['id_page'],df['reject_comment'],df['comment_date']):
 
         if comment_date == "":
@@ -219,6 +222,7 @@ def update_pages_with_comments(df_excel,notion_data):
             body ={
                 'id': page,
                 'properties':{
+                    #añadir staus comentarios 
                     'Comentarios': {'rich_text': [{'text': {'content': comment}}]},
                     'Llegada comentarios':{'date': {'start': now.strftime('%Y-%m-%d') }}
                 }
@@ -227,31 +231,71 @@ def update_pages_with_comments(df_excel,notion_data):
 
             response = requests.patch(url, headers = headers , data = json.dumps(body))
 
-            print(response.status_code)
 
 
 
 
-notion_data = get_ids()
+def get_excel():
+    for path in  os.listdir(os.getcwd()):
+        if os.path.isfile(os.path.join(os.getcwd(),path)):
+            file_extension =path.rsplit('.',1)[1]
+            if file_extension == 'xlsx':
+                return path
 
-for path in os.listdir(os.getcwd()):
-    if os.path.isfile(os.path.join(os.getcwd(),path)):
-        try:
-            file_name = path.split('_')
-            file_type = file_name[1].split('.')[0]
-            file_extension = file_name[1].split('.')[1]
-        except:
-            file_type = ''
-            file_extension = ''
-        
-        if file_type == 'DCMs' and file_extension == 'xlsx':
-           df_excel = transform_data_excel(excel_file=path)
-           upload_new_pages(df_excel=df_excel,notion_data=notion_data['code'])
-           update_pages_with_comments(df_excel=df_excel, notion_data=notion_data)
+    raise Exception()
 
 
+def main():
+
+    intro()
+
+    print('Searching for Excels files...')
+    try:
+        path = get_excel()
+        print('Success!!')
+    except:
+        print('An error occurred while searching for an excel file... please contact support :(')
+        return None
+
+
+    print(f'Loading data from {path}')
+    try:
+        df_excel =transform_data_excel(excel_file=path)
+        print('Success!!')
+    except:
+        print('An error occurred while loading excel file... please contact support :(')
+        return None
+
+    print('Loading results from Notion')
+    try:
+        notion_data = get_notion_data()
+        print('Success!!')
+    except:
+        print('An error occurred while loading data from Notion... please contact support :(')
+        return None
+    
+    print('Processing data from excel file with Notion..')
+    print('Uploading new pages to Notion...')
+    try:
+        upload_new_pages(df_excel=df_excel,notion_data=notion_data['code'])
+        print('Success!!')
+    except:
+        print('An error occurred while uploading new pages to Notion... please contact support :(')
+        return None
+
+    print('Updating new pages...')
+    try:
+        update_pages_with_comments(df_excel=df_excel, notion_data=notion_data)
+        print('Success!!')
+    except:
+        print('An error occurred while updating Notion... please contact support :(')
+        return None
+
+    return 200
 
 
 
+if __name__ == "__main__": 
+    main()
 
 
