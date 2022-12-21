@@ -19,7 +19,7 @@ def intro():
     print('\n')
     print(datetime.today())
     print('Project: C6274')
-    print('Current version 1.1.1')
+    print('Current version 1.1.2')
     print('In case of any error please contact JLC by email (jose.conde@ghenova.net) \n')
 
     return None
@@ -301,7 +301,7 @@ def main():
         print('An error occurred while searching for an excel file... please contact support :(')
         return None
 
-    print(f'Loading data from {path}')
+    print(f'Loading data from {path}...')
     try:
         df_excel =transform_data_excel(excel_file=path)
         print('Success!!')
@@ -309,7 +309,7 @@ def main():
         print('An error occurred while loading excel file... please contact support :(')
         return None
 
-    print('Loading results from Notion')
+    print('Loading results from Notion...')
     try:
         notion_data = get_notion_data()
         print('Success!!')
@@ -317,7 +317,6 @@ def main():
         print('An error occurred while loading data from Notion... please contact support :(')
         return None
 
-    print('Processing data from excel file with Notion..')
     print('Uploading new pages to Notion...')
     try:
         pages_upload = upload_new_pages(df_excel=df_excel,notion_data=notion_data['code'])
