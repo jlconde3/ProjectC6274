@@ -135,7 +135,7 @@ def transform_data_excel(excel_file):
         df['Sketch Status'],
         df['Rejection Note']):
 
-        if status in ['Sketch sent to Fincantieri','Involvement to Do','Awaiting Info FC'] and status_comment != 'Approved':
+        if status in ['Sketch sent to Fincantieri','Involvement to Do','Awaiting Info FC'] and not status_comment in ['Approved', 'Under Approval']:
 
             code = f'DCM{dcm_number[-4:]}-{dcm_document[6:]}'
             zone= dcm_document[12:14]
@@ -162,6 +162,8 @@ def transform_data_excel(excel_file):
 
 def upload_new_pages(df_excel, notion_data:list):
     
+    pages_upload = 0
+
     headers={
         'Notion-Version': notion_version,
         'Content-Type': content,
@@ -199,9 +201,15 @@ def upload_new_pages(df_excel, notion_data:list):
             data['properties']['Fecha de llegada'] = {'date': {'start': row['date_recive']}}
         
         response = requests.post(url=url,headers=headers, data=json.dumps(data))
+        
+        pages_upload += 1
+
+    return pages_upload
 
 
 def update_pages_with_comments(df_excel,notion_data):
+
+    pages_update = 0
     
     df_excel = df_excel[df_excel['status_comment']=='Rejected']
     df_notion = pd.DataFrame(data=notion_data)
@@ -231,10 +239,11 @@ def update_pages_with_comments(df_excel,notion_data):
 
             response = requests.patch(url, headers = headers , data = json.dumps(body))
 
+            pages_update +=1
+    
+    return pages_update
 
-
-
-
+    
 def get_excel():
     for path in  os.listdir(os.getcwd()):
         if os.path.isfile(os.path.join(os.getcwd(),path)):
@@ -277,15 +286,20 @@ def main():
     print('Processing data from excel file with Notion..')
     print('Uploading new pages to Notion...')
     try:
-        upload_new_pages(df_excel=df_excel,notion_data=notion_data['code'])
+        pages_upload = upload_new_pages(df_excel=df_excel,notion_data=notion_data['code'])
+
+        print('{pages} pages upload to Notion '.format(pages = pages_upload))
         print('Success!!')
+
     except:
         print('An error occurred while uploading new pages to Notion... please contact support :(')
         return None
 
     print('Updating new pages...')
     try:
-        update_pages_with_comments(df_excel=df_excel, notion_data=notion_data)
+        pages_update = update_pages_with_comments(df_excel=df_excel, notion_data=notion_data)
+
+        print('{pages} pages update to Notion '.format(pages = pages_update))
         print('Success!!')
     except:
         print('An error occurred while updating Notion... please contact support :(')

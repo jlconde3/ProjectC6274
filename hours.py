@@ -172,11 +172,13 @@ def process_data(clockify_data:dict, notion_data:dict):
     df_clockify2= df_clockify.groupby(['codes']).sum()
     df_notion = pd.DataFrame(data=notion_data)
     df=pd.merge(df_notion, df_clockify2, on='codes')
-    
+
     return df
 
 
 def upload_hours_to_notion(df)->int:
+
+    pages_update = 0
 
     headers = {
         'Authorization': f'Bearer {api_key_notion}',
@@ -188,15 +190,20 @@ def upload_hours_to_notion(df)->int:
 
         body ={
             'id': page,
-            'properties':{'Horas reales': {'number': hours}}
+            'properties':{'Horas reales': {'number': round(hours,2)}}
         }
         url = f'https://api.notion.com/v1/pages/{page}'
         response = requests.patch(url, headers = headers , data = json.dumps(body))
 
         if response.status_code != 200:
             raise Exception() 
+
+        pages_update += 1
+
+    return pages_update
     
-    return response.status_code
+
+
 
 def generate_csv(df):
     """
@@ -238,9 +245,10 @@ def main():
         print('An error occurred while processing data... please contact support :(')
         return None
 
-    print('Uploading results to Notion')
+    print('Updating hours to Notion')
     try:
-        upload_hours_to_notion(df)
+        pages_update = upload_hours_to_notion(df)
+        print('{pages} pages update to Notion '.format(pages = pages_update))
         print('Success!!')
     except:
         print('An error occurred while updating Notion... please contact support :(')
