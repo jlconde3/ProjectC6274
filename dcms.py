@@ -19,7 +19,7 @@ def intro():
     print('\n')
     print(datetime.today())
     print('Project: C6274')
-    print('Current version 1.0.0')
+    print('Current version 1.1.0')
     print('In case of any error please contact JLC by email (jose.conde@ghenova.net) \n')
 
     return None
