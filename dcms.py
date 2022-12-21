@@ -19,19 +19,42 @@ def intro():
     print('\n')
     print(datetime.today())
     print('Project: C6274')
-    print('Current version 1.1.0')
+    print('Current version 1.1.1')
     print('In case of any error please contact JLC by email (jose.conde@ghenova.net) \n')
 
     return None
 
-def dates_format(value):
-    return datetime.strftime(value, '%Y-%m-%d')
+def get_excel():
+    '''
+    Look for excel file with new infrmation from Crusscotto.
+
+    :return path:string path to excel file.
+    '''
+    for path in  os.listdir(os.getcwd()):
+        if os.path.isfile(os.path.join(os.getcwd(),path)):
+            file_extension =path.rsplit('.',1)[1]
+            if file_extension == 'xlsx':
+                return path
+
+    raise Exception()
+
+
+def dates_format(date)->str:
+    '''
+    Format date to string.
+
+    :param date: datetime object to convert to str.
+    :return string: with date format.
+    '''
+
+    return datetime.strftime(date, '%Y-%m-%d')
 
 
 def get_notion_data()->dict:
     '''
-    Get all ids from Notion for project C6274.
-    :return dict: dictionary containing codes, status and hours downloaded from Clockify.
+    Get all ids from Notion for project C6309.
+
+    :return dict: dictionary containing codes, status_modelo,comment date, and pages id from Notion.
     '''
     headers={
         'Notion-Version': notion_version,
@@ -111,8 +134,14 @@ def get_notion_data()->dict:
     return {'code':ids, 'status':ids_status, 'comment_date':ids_comments_date, 'id_page':ids_pages}
 
 
+def transform_data_excel(excel_file:str):
 
-def transform_data_excel(excel_file):
+    '''
+    Transform data stored in excel to pandas Dataframe.
+
+    :param excel_file: path to excel file.
+    :return df: pandas dataframe.
+    '''
 
     df = pd.read_excel(excel_file, engine='openpyxl')
     df.fillna('', inplace=True)
@@ -160,7 +189,16 @@ def transform_data_excel(excel_file):
 
     return df
 
+
 def upload_new_pages(df_excel, notion_data:list):
+    
+    '''
+    Upload new pages to Notion with the new entries found from excel file.
+
+    :param df_excel: dataframe form excel file with new info. 
+    :param notion_data: list with all pages downloaded from Notion.
+    :return pages_upload: total count of pages upload to Notion.
+    '''
     
     pages_upload = 0
 
@@ -208,6 +246,14 @@ def upload_new_pages(df_excel, notion_data:list):
 
 
 def update_pages_with_comments(df_excel,notion_data):
+    '''
+    Update pages in Notion. Only udpate the ones that have been rejected.
+    Update field comment with value from excel and today date in Notion.
+
+    :param df_excel: dataframe form excel file with new info. 
+    :param notion_data: dict with all page info downloaded from Notion.
+    :return pages_update: total count of pages update to Notion.
+    '''
 
     pages_update = 0
     
@@ -230,7 +276,6 @@ def update_pages_with_comments(df_excel,notion_data):
             body ={
                 'id': page,
                 'properties':{
-                    #añadir staus comentarios 
                     'Comentarios': {'rich_text': [{'text': {'content': comment}}]},
                     'Llegada comentarios':{'date': {'start': now.strftime('%Y-%m-%d') }}
                 }
@@ -244,16 +289,6 @@ def update_pages_with_comments(df_excel,notion_data):
     return pages_update
 
     
-def get_excel():
-    for path in  os.listdir(os.getcwd()):
-        if os.path.isfile(os.path.join(os.getcwd(),path)):
-            file_extension =path.rsplit('.',1)[1]
-            if file_extension == 'xlsx':
-                return path
-
-    raise Exception()
-
-
 def main():
 
     intro()
@@ -265,7 +300,6 @@ def main():
     except:
         print('An error occurred while searching for an excel file... please contact support :(')
         return None
-
 
     print(f'Loading data from {path}')
     try:
@@ -282,7 +316,7 @@ def main():
     except:
         print('An error occurred while loading data from Notion... please contact support :(')
         return None
-    
+
     print('Processing data from excel file with Notion..')
     print('Uploading new pages to Notion...')
     try:
@@ -290,7 +324,6 @@ def main():
 
         print('{pages} pages upload to Notion '.format(pages = pages_upload))
         print('Success!!')
-
     except:
         print('An error occurred while uploading new pages to Notion... please contact support :(')
         return None
@@ -308,8 +341,5 @@ def main():
     return 200
 
 
-
 if __name__ == "__main__": 
     main()
-
-

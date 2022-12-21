@@ -22,10 +22,11 @@ def intro():
 
 
 def get_notion_data()->dict:
-    """
+    '''
     Get all ids from Notion for project C6274.
-    :return dict: dictionary containing codes, status and hours downloaded from Clockify.
-    """
+
+    :return dict: dictionary containing codes, status and pages ids from Notion.
+    '''
     headers={
         'Notion-Version': notion_version,
         'Content-Type': content,
@@ -82,6 +83,7 @@ def get_notion_data()->dict:
                 id_notion = row['properties']['ID']['title'][0]['plain_text']
                 id_status = row['properties']['Status planos']['status']['name']
                 id_page = row['id']
+
                 ids.append(id_notion)
                 ids_status.append(id_status)
                 ids_pages.append(id_page)
@@ -94,19 +96,26 @@ def get_notion_data()->dict:
 
 
 def format_date(date):
+    '''
+    Format date from datetime format to ISO format used by Clockify.
+
+    :param date: datetime. 
+    :return string: datetime format.
+    '''
     date_mod = str(date).split(' ')
     return date_mod[0] + 'T' + date_mod[1]
 
 
 def get_time_record (init_date,end_date, ids_clockify:list, hours_clockify:list)->int:
-    """
+    '''
     Get time records from Clockify for a specific day.
+
     :param init_date: initial date of query.
     :param end_date: final date of query.
     :param ids_clockify: list of dcms downloaded from Clockify.
     :param hours_clockify: list of hours downloaded from Clockify.
     :return int: response status after connect clockify api.
-    """
+    '''
     headers= {
         'X-Api-Key': api_key_clockify ,
         'content-type':content
@@ -145,11 +154,11 @@ def get_time_record (init_date,end_date, ids_clockify:list, hours_clockify:list)
 
 
 def get_all_time_records()->dict:
-    """
+    '''
     Get all time records from Clockify for project C6274 from 01/12/2022 to today.
-    :return dict: dictionary containing codes and hours downloaded from Clockify.
-    """
 
+    :return dict: dictionary containing codes and hours downloaded from Clockify.
+    '''
     last_date = datetime.strptime(datetime.today().strftime('%Y-%m-%d'), '%Y-%m-%d') + timedelta(days=1)
     init_date = datetime(2022,12,1)
 
@@ -167,6 +176,15 @@ def get_all_time_records()->dict:
 
 
 def process_data(clockify_data:dict, notion_data:dict):
+
+    '''
+    Combine data download from Notion and Clockify in an single Dataframe.
+    Also group data clockify by codes. 
+
+    :param clockify_data: dictionary containing clockify data.
+    :param notion_data: dictionary containing notion data. 
+    :return df: dataframe with combine data.
+    '''
 
     df_clockify = pd.DataFrame(data=clockify_data)
     df_clockify2= df_clockify.groupby(['codes']).sum()
@@ -203,14 +221,13 @@ def upload_hours_to_notion(df)->int:
     return pages_update
     
 
-
-
 def generate_csv(df):
-    """
+    '''
     Gnerete a csv file with all DCMs in DCM Delivered status.
+
     :param df: dataframe with data from merge dataframes.
     :return None:
-    """
+    '''
     df = df[df['status']=='DCM Delivered']
     df2 = df.loc[:, ['codes', 'status','hours']]
     path = os.path.join(os.getcwd(),'data.csv')
@@ -265,5 +282,5 @@ def main():
     return 200
 
 
-if __name__ == "__main__": 
+if __name__ == '__main__': 
     main()
