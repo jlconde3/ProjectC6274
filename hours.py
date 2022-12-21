@@ -16,7 +16,7 @@ def intro():
     print('\n')
     print(datetime.today())
     print('Project: C.6274')
-    print('Current version 1.1.0')
+    print('Current version 1.1.2')
     print('In case of any error please contact JLC by email (jose.conde@ghenova.net) \n')
     return None
 
@@ -238,7 +238,7 @@ def main():
     
     intro()
 
-    print('Loading results from Notion')
+    print('Loading results from Notion...')
     try:
         notion_data = get_notion_data()
         print('Success!!')
@@ -246,7 +246,7 @@ def main():
         print('An error occurred while loading data from Notion... please contact support :(')
         return None
     
-    print('Loading results from Clockify')
+    print('Loading results from Clockify...')
     try:
         clockify_data = get_all_time_records()
         print('Success!!')
@@ -262,7 +262,7 @@ def main():
         print('An error occurred while processing data... please contact support :(')
         return None
 
-    print('Updating hours to Notion')
+    print('Updating hours to Notion...')
     try:
         pages_update = upload_hours_to_notion(df)
         print('{pages} pages update to Notion '.format(pages = pages_update))
@@ -271,7 +271,7 @@ def main():
         print('An error occurred while updating Notion... please contact support :(')
         return None
     
-    print('Generating csv file')
+    print('Generating csv file...')
     try:
         generate_csv(df)
         print('Success!!')
